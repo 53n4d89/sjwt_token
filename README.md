@@ -18,5 +18,6 @@ The sjwt_token performs rigorous validation checks during the token verification
 # Layered Security Measures: 
 By combining the elements mentioned above, including IP address binding, salting, and thorough validation checks, the sjwt_token offers layered security measures to protect the token and ensure secure authentication. These measures add complexity and resilience to the token-based authentication system, making it more robust against potential attacks or unauthorized usage.
 
+# NOT ANY MORE!!!
+
 ![image](https://github.com/53n4d89/sjwt_token/assets/120484854/e73aa1ac-bead-49fc-bdd3-7da8fdeefea7)
-**Not any more!!!**

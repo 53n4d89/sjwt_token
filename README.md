@@ -24,4 +24,4 @@ By combining the elements mentioned above, including IP address binding, salting
 
 
 # License
-jswt_token is made with hearts by @j3ssiejjj and it is released under the MIT license.
+jswt_token is made with hearts by @53n4d89 and it is released under the MIT license.

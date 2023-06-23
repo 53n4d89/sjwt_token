@@ -21,3 +21,7 @@ By combining the elements mentioned above, including IP address binding, salting
 # NOT ANY MORE!!!
 
 ![image](https://github.com/53n4d89/sjwt_token/assets/120484854/e73aa1ac-bead-49fc-bdd3-7da8fdeefea7)
+
+
+# License
+jswt_token is made with hearts by @j3ssiejjj and it is released under the MIT license.

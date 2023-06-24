@@ -57,12 +57,10 @@ function validateToken(token) {
   const payload = JSON.parse(base64UrlDecode(payloadBase64));
   const signature = base64UrlDecode(signatureBase64);
 
-  // Verify the header
   if (!header.alg || header.alg !== 'HS256') {
     throw new Error('Unexpected or missing algorithm in token header');
   }
 
-  // Verify the signature
   const expectedSignature = crypto
     .createHmac('sha256', jwtSecretKey)
     .update(`${headerBase64}.${payloadBase64}`)
@@ -72,17 +70,14 @@ function validateToken(token) {
     throw new Error('Invalid token signature');
   }
 
-  // Verify the issuer
   if (!payload.iss || payload.iss !== 'senad_cavkusic') {
     throw new Error('Invalid token issuer');
   }
 
-  // Verify the token hasn't expired
   if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
     throw new Error('Token has expired');
   }
 
-  // Verify the IP address
   const userId = payload.idv || null;
   const userIP = getUniqueBrowserId();
   const storedIP = payload.ipv || null;

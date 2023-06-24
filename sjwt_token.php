@@ -24,20 +24,15 @@
     protected function getUniqueBrowserId() {
         $userAgent = $_SERVER['HTTP_USER_AGENT'];
 
-        // Check for shared internet/ISP IP
         if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
             $ipAddress = $_SERVER['HTTP_CLIENT_IP'];
         }
 
-        // Check for IPs passing through proxies
         elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            // We need to check if it's a list of IP addresses
             $ipList = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
-            // We'll take the last IP in the list
             $ipAddress = trim(end($ipList));
         }
 
-        // If not, we use the sent IP address (most probably it's a direct access from the user)
         else {
             $ipAddress = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
         }
@@ -65,28 +60,23 @@
         $payload = json_decode($this->base64UrlDecode($payloadBase64), true);
         $signature = $this->base64UrlDecode($signatureBase64);
 
-        // Verify the header
         if (!isset($header['alg']) || $header['alg'] !== 'HS256') {
             throw new Exception('Unexpected or missing algorithm in token header');
         }
 
-        // Verify the signature
         $expectedSignature = hash_hmac('sha256', "$headerBase64.$payloadBase64", $this->jwtSecretKey, true);
         if (!hash_equals($expectedSignature, $signature)) {
             throw new Exception('Invalid token signature');
         }
 
-        // Verify the issuer
         if (!isset($payload['iss']) || $payload['iss'] !== 'senad_cavkusic') {
             throw new Exception('Invalid token issuer');
         }
 
-        // Verify the token hasn't expired
         if (isset($payload['exp']) && $payload['exp'] < time()) {
             throw new Exception('Token has expired');
         }
 
-        // Verify the IP address
         $userId = isset($payload['idv']) ? $payload['idv'] : null;
         $userIP = $this->grabUserIpAddress();
         $storedIP = isset($payload['ipv']) ? $payload['ipv'] : null;

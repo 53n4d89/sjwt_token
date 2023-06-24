@@ -1,4 +1,7 @@
+const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+
+const jwtSecretKey = 'your_secret_key';
 
 function generateToken(user) {
   const header = base64UrlEncode(JSON.stringify({
@@ -12,22 +15,32 @@ function generateToken(user) {
     iat: Math.floor(Date.now() / 1000),
     exp: Math.floor(Date.now() / 1000) + 3600,
     idv: user.id,
-    ipv: grabUserIpAddress()
+    ipv: getUniqueBrowserId()
   }));
 
   const dataToSign = `${header}.${payload}`;
-  const signature = base64UrlEncode(crypto.createHmac('sha256', jwtSecretKey).update(dataToSign).digest('binary'));
+  const signature = base64UrlEncode(
+    crypto
+      .createHmac('sha256', jwtSecretKey)
+      .update(dataToSign)
+      .digest('binary')
+  );
 
   return `${dataToSign}.${signature}`;
 }
 
-function grabUserIpAddress() {
-  const ipAddress = req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.socket.remoteAddress || req.connection.socket.remoteAddress || '0.0.0.0';
-  const ipAddressWithoutDots = ipAddress.replace(/\./g, '');
-  const salt = crypto.createHash('sha256').update(jwtSecretKey).digest('hex');
-  const concatenatedString = ipAddressWithoutDots + salt;
+function getUniqueBrowserId() {
+  const userAgent = req.headers['user-agent'];
+  const ipAddress =
+    req.headers['x-forwarded-for'] ||
+    req.connection.remoteAddress ||
+    req.socket.remoteAddress ||
+    req.connection.socket.remoteAddress;
 
-  return crypto.createHash('sha256').update(concatenatedString).digest('hex');
+  const ipWithoutDots = ipAddress.replace(/\./g, '');
+  const uniqueId = crypto.createHash('sha256').update(userAgent + ipWithoutDots).digest('hex');
+
+  return uniqueId;
 }
 
 function validateToken(token) {
@@ -50,8 +63,12 @@ function validateToken(token) {
   }
 
   // Verify the signature
-  const expectedSignature = crypto.createHmac('sha256', jwtSecretKey).update(`${headerBase64}.${payloadBase64}`).digest('binary');
-  if (!crypto.timingSafeEqual(Buffer.from(expectedSignature), Buffer.from(signature))) {
+  const expectedSignature = crypto
+    .createHmac('sha256', jwtSecretKey)
+    .update(`${headerBase64}.${payloadBase64}`)
+    .digest('binary');
+
+  if (!crypto.timingSafeEqual(Buffer.from(expectedSignature, 'binary'), Buffer.from(signature, 'binary'))) {
     throw new Error('Invalid token signature');
   }
 
@@ -67,7 +84,7 @@ function validateToken(token) {
 
   // Verify the IP address
   const userId = payload.idv || null;
-  const userIP = grabUserIpAddress();
+  const userIP = getUniqueBrowserId();
   const storedIP = payload.ipv || null;
 
   if (storedIP !== userIP) {
@@ -80,18 +97,16 @@ function validateToken(token) {
 function base64UrlEncode(data) {
   let encoded = Buffer.from(data).toString('base64');
   encoded = encoded.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
   return encoded;
 }
 
 function base64UrlDecode(data) {
-  const padded = data + '==='.slice((data.length + 3) % 4);
-  return Buffer.from(padded.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+  const paddingLength = (4 - (data.length % 4)) % 4;
+  const paddedData = data + '='.repeat(paddingLength);
+  return Buffer.from(paddedData, 'base64').toString();
 }
 
 module.exports = {
   generateToken,
   validateToken
-  base64UrlEncode,
-  base64UrlDecode
 };

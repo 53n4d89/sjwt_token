@@ -12,7 +12,7 @@
             'iat' => time(),
             'exp' => time() + 3600,
             'idv' => $user['id'],
-            'ipv' => $this->grabUserIpAddress()
+            'ipv' => $this->getUniqueBrowserId()
         ]));
 
         $dataToSign = "$header.$payload";

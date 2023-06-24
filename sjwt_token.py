@@ -1,82 +1,75 @@
-import hashlib
-import base64
-import json
-import hmac
 import time
+import json
+import base64
+import hashlib
+import hmac
+import jwt
+from flask import request
 
-jwtSecretKey = "your_jwt_secret_key"
+class JWTManager:
 
-def generate_token(user):
-    header = base64_url_encode(json.dumps({
-        'alg': 'HS256',
-        'typ': 'JWT'
-    }))
+    def __init__(self, jwt_secret_key):
+        self.jwt_secret_key = jwt_secret_key
 
-    payload = base64_url_encode(json.dumps({
-        'iss': 'senad_cavkusic',
-        'aud': '.sarajevoweb.com',
-        'iat': int(time.time()),
-        'exp': int(time.time()) + 3600,
-        'idv': user['id'],
-        'ipv': grab_user_ip_address()
-    }))
+    def generate_token(self, user):
+        header = self.base64_url_encode(json.dumps({
+            'alg': 'HS256',
+            'typ': 'JWT'
+        }))
 
-    data_to_sign = f"{header}.{payload}"
-    signature = base64_url_encode(hmac.new(jwtSecretKey.encode(), data_to_sign.encode(), hashlib.sha256).digest())
+        payload = self.base64_url_encode(json.dumps({
+            'iss': 'senad_cavkusic',
+            'aud': '.sarajevoweb.com',
+            'iat': time.time(),
+            'exp': time.time() + 3600,
+            'idv': user['id'],
+            'ipv': self.get_unique_browser_id()
+        }))
 
-    return f"{data_to_sign}.{signature}"
+        data_to_sign = f"{header}.{payload}"
+        signature = self.base64_url_encode(hmac.new(self.jwt_secret_key.encode(), msg=data_to_sign.encode(), digestmod=hashlib.sha256).digest())
 
-def grab_user_ip_address():
-    # Retrieve user IP address based on your server environment
-    # Implement the logic to get the IP address here
-    return user_ip_address
+        return f"{data_to_sign}.{signature}"
 
-def validate_token(token):
-    token_parts = token.split('.')
-    if len(token_parts) != 3:
-        raise Exception('Invalid token format')
+    def get_unique_browser_id(self):
+        user_agent = request.headers.get('User-Agent')
+        ip_address = request.headers.get('X-Real-IP', request.remote_addr)
+        unique_id = hashlib.sha256(f"{user_agent}{ip_address}".encode()).hexdigest()
+        return unique_id
 
-    header_base64 = token_parts[0]
-    payload_base64 = token_parts[1]
-    signature_base64 = token_parts[2]
+    def validate_token(self, token):
+        token_parts = token.split('.')
+        if len(token_parts) != 3:
+            raise Exception('Invalid token format')
 
-    header = json.loads(base64_url_decode(header_base64))
-    payload = json.loads(base64_url_decode(payload_base64))
-    signature = base64_url_decode(signature_base64)
+        header = json.loads(self.base64_url_decode(token_parts[0]))
+        payload = json.loads(self.base64_url_decode(token_parts[1]))
+        signature = self.base64_url_decode(token_parts[2])
 
-    # Verify the header
-    if 'alg' not in header or header['alg'] != 'HS256':
-        raise Exception('Unexpected or missing algorithm in token header')
+        if header.get('alg') != 'HS256':
+            raise Exception('Unexpected or missing algorithm in token header')
 
-    # Verify the signature
-    expected_signature = hmac.new(jwtSecretKey.encode(), f"{header_base64}.{payload_base64}".encode(), hashlib.sha256).digest()
-    if not hmac.compare_digest(expected_signature, signature):
-        raise Exception('Invalid token signature')
+        expected_signature = hmac.new(self.jwt_secret_key.encode(), msg=f"{token_parts[0]}.{token_parts[1]}".encode(), digestmod=hashlib.sha256).digest()
+        if not hmac.compare_digest(expected_signature, signature):
+            raise Exception('Invalid token signature')
 
-    # Verify the issuer
-    if 'iss' not in payload or payload['iss'] != 'senad_cavkusic':
-        raise Exception('Invalid token issuer')
+        if payload.get('iss') != 'senad_cavkusic':
+            raise Exception('Invalid token issuer')
 
-    # Verify the token hasn't expired
-    if 'exp' in payload and payload['exp'] < int(time.time()):
-        raise Exception('Token has expired')
+        if payload.get('exp') and payload['exp'] < time.time():
+            raise Exception('Token has expired')
 
-    # Verify the IP address
-    user_id = payload.get('idv')
-    user_ip = grab_user_ip_address()
-    stored_ip = payload.get('ipv')
+        user_id = payload.get('idv')
+        user_ip = self.get_unique_browser_id()
+        stored_ip = payload.get('ipv')
 
-    if stored_ip != user_ip:
-        raise Exception('Invalid IP address')
+        if stored_ip != user_ip:
+            raise Exception('Invalid IP address')
 
-    return user_id
+        return user_id
 
-def base64_url_encode(data):
-    encoded_bytes = base64.urlsafe_b64encode(data.encode()).rstrip(b'=')
-    return encoded_bytes.decode()
+    def base64_url_encode(self, data):
+        return base64.urlsafe_b64encode(data.encode()).decode().rstrip('=')
 
-def base64_url_decode(data):
-    padding = len(data) % 4
-    padded_data = data + '=' * (4 - padding)
-    decoded_bytes = base64.urlsafe_b64decode(padded_data.encode())
-    return decoded_bytes.decode()
+    def base64_url_decode(self, data):
+        return base64.urlsafe_b64decode(data + '===').decode()

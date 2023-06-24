@@ -1,113 +1,82 @@
-import json
 import hashlib
-import hmac
 import base64
+import json
+import hmac
 import time
 
-class TokenGenerator:
-    def __init__(self, jwtSecretKey):
-        self.jwtSecretKey = jwtSecretKey
+jwtSecretKey = "your_jwt_secret_key"
 
-    def generateToken(self, user):
-        header = self.base64UrlEncode(json.dumps({
-            'alg': 'HS256',
-            'typ': 'JWT'
-        }))
+def generate_token(user):
+    header = base64_url_encode(json.dumps({
+        'alg': 'HS256',
+        'typ': 'JWT'
+    }))
 
-        payload = self.base64UrlEncode(json.dumps({
-            'iss': 'senad_cavkusic',
-            'aud': '.sarajevoweb.com',
-            'iat': int(time.time()),
-            'exp': int(time.time()) + 3600,
-            'idv': user['id'],
-            'ipv': self.grabUserIpAddress()
-        }))
+    payload = base64_url_encode(json.dumps({
+        'iss': 'senad_cavkusic',
+        'aud': '.sarajevoweb.com',
+        'iat': int(time.time()),
+        'exp': int(time.time()) + 3600,
+        'idv': user['id'],
+        'ipv': grab_user_ip_address()
+    }))
 
-        dataToSign = f"{header}.{payload}"
-        signature = self.base64UrlEncode(hmac.new(
-            bytes(self.jwtSecretKey, 'utf-8'),
-            bytes(dataToSign, 'utf-8'),
-            hashlib.sha256
-        ).digest())
+    data_to_sign = f"{header}.{payload}"
+    signature = base64_url_encode(hmac.new(jwtSecretKey.encode(), data_to_sign.encode(), hashlib.sha256).digest())
 
-        return f"{dataToSign}.{signature}"
+    return f"{data_to_sign}.{signature}"
 
-    def grabUserIpAddress(self):
-        # Check for shared internet/ISP IP
-        if 'HTTP_CLIENT_IP' in os.environ:
-            ipAddress = os.environ['HTTP_CLIENT_IP']
+def grab_user_ip_address():
+    # Retrieve user IP address based on your server environment
+    # Implement the logic to get the IP address here
+    return user_ip_address
 
-        # Check for IPs passing through proxies
-        elif 'HTTP_X_FORWARDED_FOR' in os.environ:
-            # We need to check if it's a list of IP addresses
-            ipList = os.environ['HTTP_X_FORWARDED_FOR'].split(',')
-            # We'll take the last IP in the list
-            ipAddress = ipList[-1].strip()
+def validate_token(token):
+    token_parts = token.split('.')
+    if len(token_parts) != 3:
+        raise Exception('Invalid token format')
 
-        # If not, we use the sent IP address (most probably it's a direct access from the user)
-        else:
-            ipAddress = os.environ.get('REMOTE_ADDR', '0.0.0.0')
+    header_base64 = token_parts[0]
+    payload_base64 = token_parts[1]
+    signature_base64 = token_parts[2]
 
-        # Remove the dots from the IP address
-        ipAddress = ipAddress.replace('.', '')
+    header = json.loads(base64_url_decode(header_base64))
+    payload = json.loads(base64_url_decode(payload_base64))
+    signature = base64_url_decode(signature_base64)
 
-        # Convert to base64
-        ipAddress = hashlib.sha256(ipAddress.encode('utf-8')).hexdigest()
-        salt = hashlib.sha256(self.jwtSecretKey.encode('utf-8')).hexdigest()
-        concatenatedString = ipAddress + salt
+    # Verify the header
+    if 'alg' not in header or header['alg'] != 'HS256':
+        raise Exception('Unexpected or missing algorithm in token header')
 
-        return concatenatedString
+    # Verify the signature
+    expected_signature = hmac.new(jwtSecretKey.encode(), f"{header_base64}.{payload_base64}".encode(), hashlib.sha256).digest()
+    if not hmac.compare_digest(expected_signature, signature):
+        raise Exception('Invalid token signature')
 
-    def validateToken(self, token):
-        tokenParts = token.split('.')
-        if len(tokenParts) != 3:
-            raise Exception('Invalid token format')
+    # Verify the issuer
+    if 'iss' not in payload or payload['iss'] != 'senad_cavkusic':
+        raise Exception('Invalid token issuer')
 
-        headerBase64 = tokenParts[0]
-        payloadBase64 = tokenParts[1]
-        signatureBase64 = tokenParts[2]
+    # Verify the token hasn't expired
+    if 'exp' in payload and payload['exp'] < int(time.time()):
+        raise Exception('Token has expired')
 
-        header = json.loads(self.base64UrlDecode(headerBase64))
-        payload = json.loads(self.base64UrlDecode(payloadBase64))
-        signature = self.base64UrlDecode(signatureBase64)
+    # Verify the IP address
+    user_id = payload.get('idv')
+    user_ip = grab_user_ip_address()
+    stored_ip = payload.get('ipv')
 
-        # Verify the header
-        if not ('alg' in header and header['alg'] == 'HS256'):
-            raise Exception('Unexpected or missing algorithm in token header')
+    if stored_ip != user_ip:
+        raise Exception('Invalid IP address')
 
-        # Verify the signature
-        expectedSignature = hmac.new(
-            bytes(self.jwtSecretKey, 'utf-8'),
-            bytes(f"{headerBase64}.{payloadBase64}", 'utf-8'),
-            hashlib.sha256
-        ).digest()
+    return user_id
 
-        if not hmac.compare_digest(expectedSignature, signature):
-            raise Exception('Invalid token signature')
+def base64_url_encode(data):
+    encoded_bytes = base64.urlsafe_b64encode(data.encode()).rstrip(b'=')
+    return encoded_bytes.decode()
 
-        # Verify the issuer
-        if not ('iss' in payload and payload['iss'] == 'senad_cavkusic'):
-            raise Exception('Invalid token issuer')
-
-        # Verify the token hasn't expired
-        if 'exp' in payload and payload['exp'] < int(time.time()):
-            raise Exception('Token has expired')
-
-        # Verify the IP address
-        userId = payload.get('idv')
-        userIP = self.grabUserIpAddress()
-        storedIP = payload.get('ipv')
-
-        if storedIP != userIP:
-            raise Exception('Invalid IP address')
-
-        return userId
-
-    def base64UrlEncode(self, data):
-        encoded = base64.urlsafe_b64encode(data.encode('utf-8')).rstrip(b'=').decode('utf-8')
-        return encoded
-
-    def base64UrlDecode(self, data):
-        padded = data + '=' * (4 - (len(data) % 4))
-        decoded = base64.urlsafe_b64decode(padded).decode('utf-8')
-        return decoded
+def base64_url_decode(data):
+    padding = len(data) % 4
+    padded_data = data + '=' * (4 - padding)
+    decoded_bytes = base64.urlsafe_b64decode(padded_data.encode())
+    return decoded_bytes.decode()

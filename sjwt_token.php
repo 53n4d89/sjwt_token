@@ -21,7 +21,9 @@
         return "$dataToSign.$signature";
     }
 
-    protected function grabUserIpAddress() {
+    protected function getUniqueBrowserId() {
+        $userAgent = $_SERVER['HTTP_USER_AGENT'];
+
         // Check for shared internet/ISP IP
         if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
             $ipAddress = $_SERVER['HTTP_CLIENT_IP'];
@@ -44,11 +46,9 @@
         $ipAddress = str_replace('.', '', $ipAddress);
 
         // Convert to base64
-        $ipAddress = hash('sha256', $ipAddress);
-        $salt = hash('sha256', $this->jwtSecretKey);
-        $concatenatedString = $ipAddress . $salt;
+        $uniqueId = hash('sha256', $userAgent . $ipAddress);
 
-        return $concatenatedString;
+        return $uniqueId;
     }
 
     public function validateToken($token) {
